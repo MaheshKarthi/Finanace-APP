@@ -113,7 +113,16 @@ function extractDate(sms: string, fallback: string): string {
 }
 
 function parseSMS(sms: string, timestamp?: string): Omit<ParsedSMS, 'merchantCount'> {
-  const today = (timestamp ? new Date(timestamp) : new Date()).toISOString().slice(0, 10);
+  let dateObj: Date;
+  if (timestamp) {
+    // Handle unix milliseconds (from MacroDroid {unix_time}) or ISO string
+    const asNum = Number(timestamp);
+    dateObj = !isNaN(asNum) ? new Date(asNum) : new Date(timestamp);
+  } else {
+    dateObj = new Date();
+  }
+  if (isNaN(dateObj.getTime())) dateObj = new Date();
+  const today = dateObj.toISOString().slice(0, 10);
 
   for (const { bank, re } of DEBIT_PATTERNS) {
     const m = sms.match(re);

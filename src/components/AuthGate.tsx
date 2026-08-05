@@ -20,17 +20,14 @@ export default function AuthGate({ children }: Props) {
 
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      if (data.session) {
-        // Pull latest cloud data on load
-        pullAll().catch(console.error);
-      }
+      // Sync in background — don't block UI
+      if (data.session) setTimeout(() => pullAll().catch(console.error), 100);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       if (s) {
-        pullAll().catch(console.error);
-        // Attempt push registration silently after login (user can manage in Settings)
+        setTimeout(() => pullAll().catch(console.error), 100);
         import('../lib/push').then(m => m.registerPush()).catch(() => {});
       }
     });

@@ -15,7 +15,9 @@ export default function Dashboard() {
   const allExp = useLiveQuery(() => db.expenses.toArray(), []);
   const allHV = useLiveQuery(() => db.holdingValues.toArray(), []);
 
-  if (!allInv || !allExp || !allHV) return <div className="p-6 text-slate-400">Loading…</div>;
+  if (allInv === undefined || allExp === undefined || allHV === undefined) {
+    return <div className="p-6 text-slate-400">Loading…</div>;
+  }
 
   const persons: Person[] = personFilter === 'all' ? ['person1', 'person2'] : [personFilter];
 
