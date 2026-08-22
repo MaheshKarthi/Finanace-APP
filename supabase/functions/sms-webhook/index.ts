@@ -36,6 +36,17 @@ interface ParsedSMS {
 
 // ── Indian Bank Debit Patterns ───────────────────────────────────────────────
 const DEBIT_PATTERNS: { bank: string; re: RegExp }[] = [
+  // HDFC UPI "Sent Rs.22.00 From HDFC Bank A/C"
+  { bank: 'HDFC',    re: /Sent\s+Rs\.?([\d,]+(?:\.\d+)?)\s+From HDFC/i },
+  // HDFC Card "Txn Rs.22.00 On HDFC Bank Card"
+  { bank: 'HDFC',    re: /Txn\s+Rs\.?([\d,]+(?:\.\d+)?)\s+On HDFC Bank Card/i },
+  // AMEX "You've spent INR 648.60 on your AMEX card"
+  { bank: 'AMEX',    re: /spent\s+INR\s+([\d,]+(?:\.\d+)?)\s+on your AMEX/i },
+  // ICICI Card "INR 716.00 spent using ICICI Bank Card"
+  { bank: 'ICICI',   re: /INR\s+([\d,]+(?:\.\d+)?)\s+spent using ICICI Bank Card/i },
+  // Generic "spent INR/Rs" (Amex, other cards)
+  { bank: 'Card',    re: /(?:INR|Rs\.?)\s*([\d,]+(?:\.\d+)?)\s+(?:spent|debited)/i },
+  // Standard debited patterns
   { bank: 'HDFC',    re: /Rs\.?([\d,]+(?:\.\d+)?)\s+debited from/i },
   { bank: 'SBI',     re: /debited by Rs\.?\s*([\d,]+(?:\.\d+)?)/i },
   { bank: 'ICICI',   re: /Rs\.?\s*([\d,]+(?:\.\d+)?)\s+debited from ICICI/i },
@@ -45,15 +56,18 @@ const DEBIT_PATTERNS: { bank: string; re: RegExp }[] = [
   { bank: 'IndusInd',re: /INR\s*([\d,]+(?:\.\d+)?)\s+debited from IndusInd/i },
   { bank: 'Yes',     re: /Rs\.?([\d,]+(?:\.\d+)?)\s+has been debited from Yes Bank/i },
   { bank: 'UPI',     re: /(?:UPI|IMPS).*?(?:debit|debited).*?(?:INR|Rs\.?)\s*([\d,]+(?:\.\d+)?)/i },
-  { bank: 'Card',    re: /(?:spent|used).*?(?:INR|Rs\.?)\s*([\d,]+(?:\.\d+)?)/i },
   { bank: 'Bank',    re: /(?:INR|Rs\.?)\s*([\d,]+(?:\.\d+)?)\s+(?:debited|withdrawn|paid)/i },
 ];
 
 const CREDIT_PATTERNS: { bank: string; re: RegExp }[] = [
+  // "INR 10,118.00 deposited in HDFC Bank A/c" — HDFC NEFT
+  { bank: 'HDFC',  re: /INR\s+([\d,]+(?:\.\d+)?)\s+deposited in HDFC/i },
+  // "Acct XX855 is credited with Rs 37774.00" — ICICI UPI credit
+  { bank: 'ICICI', re: /credited with Rs\s+([\d,]+(?:\.\d+)?)/i },
   { bank: 'HDFC',  re: /Rs\.?([\d,]+(?:\.\d+)?)\s+credited to/i },
   { bank: 'SBI',   re: /credited by Rs\.?\s*([\d,]+(?:\.\d+)?)/i },
   { bank: 'ICICI', re: /Rs\.?\s*([\d,]+(?:\.\d+)?)\s+credited to ICICI/i },
-  { bank: 'Bank',  re: /(?:INR|Rs\.?)\s*([\d,]+(?:\.\d+)?)\s+credited/i },
+  { bank: 'Bank',  re: /(?:INR|Rs\.?)\s*([\d,]+(?:\.\d+)?)\s+(?:credited|deposited)/i },
 ];
 
 // ── Category auto-detection ──────────────────────────────────────────────────
@@ -79,12 +93,22 @@ function categorize(text: string): string {
 
 function extractMerchant(sms: string): string {
   const patterns = [
+    // "To ARJUNAN R" — HDFC UPI
+    /^To\s+([A-Z][A-Za-z0-9 &.\-/]{2,35})/m,
+    // "At paytmqrfz12yh4y6p@paytm" — HDFC card UPI
+    /At\s+([A-Za-z0-9@.\-_]{4,50})\s+by UPI/i,
+    // "at IRCTC" — AMEX
+    /at\s+([A-Z][A-Z0-9 &.\-/]{2,35})\s+on\s+\d/i,
+    // "on ADYAR ANANDA BH" — ICICI card
+    /on\s+([A-Z][A-Z0-9 &.\-/]{2,35})\.\s+Avl/i,
+    // "from MUNUSWAMY P" — ICICI credit
+    /from\s+([A-Z][A-Za-z0-9 &.\-/]{2,35})\.\s+UPI/i,
+    // Generic patterns
     /to\s+([A-Z][A-Z0-9 &.\-/]{2,35})/i,
     /at\s+([A-Z][A-Z0-9 &.\-/]{2,35})/i,
     /for\s+([A-Z][A-Z0-9 &.\-/]{2,35})/i,
     /UPI[:/]\s*([A-Z0-9@.\-_]{4,40})/i,
     /Info:\s*([^\n.]{3,40})/i,
-    /to VPA\s+([^\s]{4,40})/i,
   ];
   for (const p of patterns) {
     const m = sms.match(p);
