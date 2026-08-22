@@ -71,6 +71,7 @@ export async function syncPendingSMS(): Promise<number> {
     .select('*')
     .eq('user_id', user.id)
     .eq('processed', false)
+    .is('user_action', null)
     .order('created_at', { ascending: true });
 
   if (error || !rows?.length) return 0;

@@ -31,11 +31,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Check for pending SMS on load and every 2 minutes
     async function checkSMS() {
-      const count = await syncPendingSMS();
-      if (count > 0) setPendingSMSCount(c => c + count);
+      if (!isConfigured()) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { count } = await supabase
+        .from('pending_sms')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('processed', false)
+        .is('user_action', null);
+      setPendingSMSCount(count ?? 0);
     }
     checkSMS();
-    const interval = setInterval(checkSMS, 2 * 60 * 1000);
+    const interval = setInterval(checkSMS, 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
