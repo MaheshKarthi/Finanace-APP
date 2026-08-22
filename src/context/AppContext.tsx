@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, initDB } from '../db/db';
-import { pushAll, syncPendingSMS } from '../lib/sync';
+import { pushAll } from '../lib/sync';
 import { isConfigured, supabase } from '../lib/supabase';
 import type { Settings, Person } from '../db/types';
 
@@ -26,25 +26,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     initDB();
-
     if (!isConfigured()) return;
 
-    // Check for pending SMS on load and every 2 minutes
     async function checkSMS() {
-      if (!isConfigured()) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
       const { count } = await supabase
         .from('pending_sms')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
         .eq('processed', false)
         .is('user_action', null);
       setPendingSMSCount(count ?? 0);
     }
+
+    // Run on auth state changes (login, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        checkSMS();
+      } else {
+        setPendingSMSCount(0);
+      }
+    });
+
+    // Also poll every minute
     checkSMS();
     const interval = setInterval(checkSMS, 60 * 1000);
-    return () => clearInterval(interval);
+
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(interval);
+    };
   }, []);
 
   async function updateSettings(patch: Partial<Settings>) {
