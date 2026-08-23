@@ -31,11 +31,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async function checkSMS() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('pending_sms')
         .select('*', { count: 'exact', head: true })
+        .eq('user_id', session.user.id)
         .eq('processed', false)
         .is('user_action', null);
+      if (error) console.error('[checkSMS]', error.message);
       setPendingSMSCount(count ?? 0);
     }
 

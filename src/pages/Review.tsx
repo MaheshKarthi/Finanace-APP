@@ -45,13 +45,16 @@ export default function Review() {
 
   useEffect(() => {
     if (!isConfigured()) return;
-    supabase
-      .from('pending_sms')
-      .select('*')
-      .eq('processed', false)
-      .is('user_action', null)          // only truly pending ones
-      .order('sms_time', { ascending: false })
-      .then(({ data }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return;
+      supabase
+        .from('pending_sms')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .eq('processed', false)
+        .is('user_action', null)
+        .order('sms_time', { ascending: false })
+        .then(({ data }) => {
         if (!data) return;
         const all = data as PendingRow[];
         // Put the focused one first (from notification tap)
@@ -60,7 +63,8 @@ export default function Review() {
           if (idx > 0) { const [r] = all.splice(idx, 1); all.unshift(r); }
         }
         setRows(all);
-      });
+        });
+    });
   }, [focusId]);
 
   async function confirm(row: PendingRow, cat: string) {
