@@ -8,6 +8,7 @@ import Holdings from './pages/Holdings';
 import Expenses from './pages/Expenses';
 import Review from './pages/Review';
 import Settings from './pages/Settings';
+import Debug from './pages/Debug';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           </Route>
           {/* Full-screen review page — no bottom nav */}
           <Route path="/review" element={<div className="max-w-xl mx-auto"><Review /></div>} />
+          <Route path="/debug" element={<Debug />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppProvider>
