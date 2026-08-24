@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { db } from '../db/db';
-import { useApp } from '../context/AppContext';
+import { useApp, afterWrite } from '../context/AppContext';
 import type { ExpenseTx, Person } from '../db/types';
 import { today } from '../lib/utils';
 
@@ -40,6 +40,7 @@ export default function ExpenseForm({ existing, onDone }: Props) {
     } else {
       await db.expenses.add(payload);
     }
+    afterWrite();
     onDone();
   }
 

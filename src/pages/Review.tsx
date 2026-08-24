@@ -26,6 +26,7 @@ interface PendingRow {
     date: string;
     bank: string;
     merchantCount?: number;
+    person?: string;
   };
   user_action: string | null;
 }
@@ -61,6 +62,9 @@ export default function Review() {
         if (focusId) {
           const idx = all.findIndex(r => r.id === focusId);
           if (idx > 0) { const [r] = all.splice(idx, 1); all.unshift(r); }
+          // Auto-select person from focused row
+          const focused = all[0];
+          if (focused?.parsed?.person) setPerson(focused.parsed.person as Person);
         }
         setRows(all);
         });

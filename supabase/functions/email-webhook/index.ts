@@ -15,6 +15,7 @@ interface EmailPayload {
   body: string;
   from: string;
   date: string; // ISO string
+  person?: string; // 'person1' or 'person2'
 }
 
 interface Parsed {
@@ -53,6 +54,16 @@ const DEBIT_PATTERNS: { bank: string; re: RegExp }[] = [
   // Generic
   { bank: 'Bank',    re: /(?:INR|Rs\.?)\s*([\d,]+(?:\.\d+)?)\s+(?:debited|spent|paid|withdrawn)/i },
   { bank: 'Bank',    re: /(?:debit|payment) of\s+(?:INR|Rs\.?)\s*([\d,]+(?:\.\d+)?)/i },
+  // UPI / generic amount patterns
+  { bank: 'Bank',    re: /(?:paid|sent|transferred)\s+(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d+)?)/i },
+  { bank: 'Bank',    re: /(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d+)?)\s+(?:paid|sent|transferred|debited|spent|deducted)/i },
+  { bank: 'Bank',    re: /amount[:\s]+(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d+)?)/i },
+  { bank: 'Bank',    re: /₹\s*([\d,]+(?:\.\d+)?)\s+(?:debited|paid|spent|sent|deducted|transferred)/i },
+  { bank: 'Bank',    re: /you (?:paid|sent|transferred)\s+(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)/i },
+  { bank: 'Bank',    re: /(?:txn|transaction) (?:of|for|amount)[:\s]+(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)/i },
+  // Last resort: any standalone ₹ amount in the email
+  { bank: 'Bank',    re: /₹\s*([\d,]+(?:\.\d+)?)/ },
+  { bank: 'Bank',    re: /(?:INR|Rs\.)\s*([\d,]+(?:\.\d+)?)/ },
 ];
 
 const CREDIT_PATTERNS: { bank: string; re: RegExp }[] = [
@@ -102,9 +113,12 @@ function detectBank(from: string, subject: string): string {
 function extractMerchant(body: string): string {
   const patterns = [
     /(?:at|merchant[:\s]+)\s*([A-Z][A-Za-z0-9 &.\-/]{2,40})/i,
-    /(?:to|paid to|transferred to)[:\s]+([A-Za-z0-9 &.\-/]{2,40})/i,
-    /(?:description|narration|info)[:\s]+([^\n]{3,50})/i,
+    /(?:paid to|transferred to|sent to)[:\s]+([A-Za-z0-9 &.\-/]{2,40})/i,
+    /^to[:\s]+([A-Za-z0-9 &.\-/@_]{3,40})/im,
+    /(?:description|narration|info|remarks)[:\s]+([^\n]{3,50})/i,
     /UPI[:/]\s*([A-Za-z0-9@.\-_]{4,40})/i,
+    /(?:vpa|upi id)[:\s]+([A-Za-z0-9@.\-_]{4,40})/i,
+    /(?:beneficiary|payee)[:\s]+([A-Za-z0-9 &.\-/]{3,40})/i,
   ];
   for (const p of patterns) {
     const m = body.match(p);
@@ -167,7 +181,7 @@ Deno.serve(async (req) => {
 
   try {
     const body: EmailPayload = await req.json();
-    const { token, subject, body: emailBody, from, date } = body;
+    const { token, subject, body: emailBody, from, date, person } = body;
 
     if (!token || !subject) return new Response(JSON.stringify({ error: 'Missing token or subject' }), { status: 400 });
 
@@ -198,7 +212,7 @@ Deno.serve(async (req) => {
         raw_sms: `[EMAIL] ${subject}\n${emailBody ?? ''}`.slice(0, 1000),
         sender: from ?? 'email',
         sms_time: date ?? new Date().toISOString(),
-        parsed: { ...parsed, category: finalCategory, merchantCount },
+        parsed: { ...parsed, category: finalCategory, merchantCount, person: person ?? 'person1' },
       })
       .select('id').single();
     if (insErr || !row) throw insErr ?? new Error('Insert failed');
