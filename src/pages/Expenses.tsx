@@ -9,6 +9,7 @@ import ExpenseForm from '../components/ExpenseForm';
 import CsvImport from '../components/CsvImport';
 import type { ExpenseTx, Person } from '../db/types';
 import { Plus, Upload, Pencil, Trash2 } from 'lucide-react';
+import { afterWrite } from '../context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 export default function Expenses() {
@@ -57,6 +58,7 @@ export default function Expenses() {
   async function deleteExp(e: ExpenseTx) {
     if (!confirm(`Delete "${e.description}"?`)) return;
     await db.expenses.delete(e.id!);
+    afterWrite();
   }
 
   return (

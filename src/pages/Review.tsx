@@ -62,10 +62,10 @@ export default function Review() {
         if (focusId) {
           const idx = all.findIndex(r => r.id === focusId);
           if (idx > 0) { const [r] = all.splice(idx, 1); all.unshift(r); }
-          // Auto-select person from focused row
-          const focused = all[0];
-          if (focused?.parsed?.person) setPerson(focused.parsed.person as Person);
         }
+        // Auto-select person from first row's parsed data
+        const first = all[0];
+        if (first?.parsed?.person) setPerson(first.parsed.person as Person);
         setRows(all);
         });
     });

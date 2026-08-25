@@ -9,6 +9,7 @@ import Modal from '../components/Modal';
 import InvestmentForm from '../components/InvestmentForm';
 import type { InvestmentTx, Person } from '../db/types';
 import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
+import { afterWrite } from '../context/AppContext';
 
 type FilterType = 'ALL' | 'BUY' | 'SELL' | 'INCOME';
 
@@ -52,6 +53,7 @@ export default function Investments() {
   async function deleteTx(tx: InvestmentTx) {
     if (!confirm(`Delete this ${tx.type} transaction for ${tx.holdingName}?`)) return;
     await db.investments.delete(tx.id!);
+    afterWrite();
   }
 
   const typeIcon = (t: string) =>

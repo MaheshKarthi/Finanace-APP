@@ -111,20 +111,37 @@ function detectBank(from: string, subject: string): string {
 
 // ── Extract merchant from email body ─────────────────────────────────────────
 function extractMerchant(body: string): string {
-  const patterns = [
-    /(?:at|merchant[:\s]+)\s*([A-Z][A-Za-z0-9 &.\-/]{2,40})/i,
-    /(?:paid to|transferred to|sent to)[:\s]+([A-Za-z0-9 &.\-/]{2,40})/i,
-    /^to[:\s]+([A-Za-z0-9 &.\-/@_]{3,40})/im,
-    /(?:description|narration|info|remarks)[:\s]+([^\n]{3,50})/i,
-    /UPI[:/]\s*([A-Za-z0-9@.\-_]{4,40})/i,
-    /(?:vpa|upi id)[:\s]+([A-Za-z0-9@.\-_]{4,40})/i,
-    /(?:beneficiary|payee)[:\s]+([A-Za-z0-9 &.\-/]{3,40})/i,
-  ];
-  for (const p of patterns) {
-    const m = body.match(p);
-    if (m) return m[1].trim().slice(0, 40);
+  // 1. UPI VPA like "swiggy@icici" → extract name before @
+  const vpaMatch = body.match(/(?:to|vpa|upi id|paid to|sent to)[:\s]+([A-Za-z0-9.\-_]+)@[A-Za-z0-9.\-_]+/i);
+  if (vpaMatch) {
+    const name = vpaMatch[1].replace(/[.\-_]/g, ' ').trim();
+    if (name.length >= 3) return toTitleCase(name);
   }
+
+  // 2. Explicit labeled fields
+  const labeled = [
+    /(?:paid to|transferred to|sent to|merchant)[:\s]+([A-Za-z0-9 &.\-/]{4,40})/i,
+    /^to[:\s]+([A-Za-z0-9 &.\-/]{4,40})/im,
+    /(?:beneficiary|payee)[:\s]+([A-Za-z0-9 &.\-/]{4,40})/i,
+    /(?:description|narration|info|remarks)[:\s]+([A-Za-z][A-Za-z0-9 &.\-/]{3,40})/i,
+  ];
+  for (const p of labeled) {
+    const m = body.match(p);
+    if (m) {
+      const val = m[1].trim();
+      if (val.length >= 4 && !/^\d+$/.test(val)) return toTitleCase(val.slice(0, 40));
+    }
+  }
+
+  // 3. "at MERCHANT" — only if MERCHANT is all-caps or title-case (real brand name)
+  const atMatch = body.match(/\bat\s+([A-Z][A-Z0-9 &]{3,30})/);
+  if (atMatch) return toTitleCase(atMatch[1].trim());
+
   return '';
+}
+
+function toTitleCase(s: string): string {
+  return s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).trim();
 }
 
 // ── Parse email body ──────────────────────────────────────────────────────────
@@ -203,6 +220,17 @@ Deno.serve(async (req) => {
     // Merchant memory
     const { count: merchantCount, bestCategory } = await getMerchantCount(supabase, userId, parsed.description, parsed.category);
     const finalCategory = merchantCount >= 3 ? bestCategory : parsed.category;
+
+    // Dedup — skip if same email (same subject + date) already exists
+    const { count: existing } = await supabase
+      .from('pending_sms')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('sms_time', date ?? new Date().toISOString())
+      .ilike('raw_sms', `%${subject.slice(0, 40)}%`);
+    if (existing && existing > 0) {
+      return new Response(JSON.stringify({ status: 'skipped', reason: 'duplicate' }));
+    }
 
     // Save to pending_sms table (reusing same table for emails too)
     const { data: row, error: insErr } = await supabase
